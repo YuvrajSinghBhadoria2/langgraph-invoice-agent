@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Langie - Invoice Review Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0e17;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.1);
+            --accent: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            background-image:
+                radial-gradient(circle at 20% 30%, rgba(79, 70, 229, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        header {
+            width: 100%;
+            max-width: 1000px;
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1px;
+        }
+
+        .refresh-btn {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            display: grid;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.5s ease-out;
+            transition: transform 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .step-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 15px;
+            border-left: 2px solid var(--border);
+            padding-left: 15px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .step.active {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .step.completed {
+            color: var(--success);
+        }
+
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+
+        .step.active .step-dot {
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .step.completed .step-dot {
+            background: var(--success);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Langie.<span style="color: var(--accent);">AI</span></h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="refresh-btn" onclick="window.open('/docs', '_blank')">API Docs</button>
+            <button class="refresh-btn" onclick="window.open('/workflow/visualize', '_blank')">View Full Graph</button>
+            <button class="refresh-btn" onclick="fetchData()">Refresh All</button>
+        </div>
+    </header>
+
+    <div class="container" style="max-width: 1200px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            <!-- Left Column: Pending Reviews -->
+            <section>
+                <h2
+                    style="margin-bottom: 20px; font-family: 'Outfit'; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                    Pending Human Reviews</h2>
+                <div id="review-container">
+                    <div class="empty-state">
+                        <p>No pending reviews</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Live Agent Activity -->
+            <section>
+                <h2
+                    style="margin-bottom: 20px; font-family: 'Outfit'; border-bottom: 1px solid var(--border); padding-bottom: 10px;">
+                    Live Workflow Progress (All Stages)</h2>
+                <div id="log-container" style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="empty-state">
+                        <p>No active logs</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        let workflowStages = [];
+
+        async function fetchData() {
+            if (workflowStages.length === 0) {
+                const configResp = await fetch('/workflow/config');
+                const configData = await configResp.json();
+                workflowStages = configData.stages;
+            }
+            fetchPending();
+            fetchLogs();
+        }
+
+        async function fetchPending() {
+            try {
+                const response = await fetch('/human-review/pending');
+                const data = await response.json();
+                renderReviews(data.items);
+            } catch (error) { console.error(error); }
+        }
+
+        async function fetchLogs() {
+            try {
+                const response = await fetch('/workflow/logs');
+                const data = await response.json();
+                renderLogs(data.logs);
+            } catch (error) { console.error(error); }
+        }
+
+        function renderReviews(items) {
+            const container = document.getElementById('review-container');
+            if (items.length === 0) {
+                container.innerHTML = `<div class="empty-state" style="padding: 40px;"><p>Queue is empty</p></div>`;
+                return;
+            }
+
+            container.innerHTML = items.map(item => `
+                <div class="card" id="card-${item.checkpoint_id}" style="margin-bottom: 10px;">
+                    <div class="info">
+                        <h3 style="color: var(--danger);">Review Required: ${item.invoice_id}</h3>
+                        <p>${item.vendor_name} - $${item.amount}</p>
+                        <div class="badge">REASON: ${item.reason_for_hold}</div>
+                        <div style="font-size: 0.7rem; color: #64748b; margin-top: 5px;">Created: ${new Date(item.created_at).toLocaleString()}</div>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-accept" onclick="submitDecision('${item.checkpoint_id}', 'ACCEPT')">ACCEPT</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderLogs(logs) {
+            const container = document.getElementById('log-container');
+            if (logs.length === 0) {
+                container.innerHTML = `<div class="empty-state" style="padding: 40px;"><p>No activity yet</p></div>`;
+                return;
+            }
+
+            // Show last 3 active logs
+            container.innerHTML = logs.slice(-3).reverse().map(log => {
+                const auditText = log.audit.join(' ');
+
+                return `
+                <div class="card" style="display: block; font-size: 0.85rem; border-color: ${log.status === 'COMPLETE' ? 'var(--success)' : 'var(--accent)'}">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+                        <div>
+                            <span style="font-weight: 700; color: #fff; font-size: 1.1rem;">${log.invoice_id}</span>
+                            <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">Thread: ${log.thread_id.substring(0, 8)}...</div>
+                        </div>
+                        <span class="badge" style="margin-top:0; background: ${log.status === 'COMPLETE' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(79, 70, 229, 0.2)'}; color: ${log.status === 'COMPLETE' ? 'var(--success)' : 'var(--accent)'}; border-color: ${log.status === 'COMPLETE' ? 'var(--success)' : 'var(--accent)'}">${log.status}</span>
+                    </div>
+                    
+                    <div class="step-container">
+                        ${workflowStages.map(stage => {
+                    const isCompleted = auditText.includes(stage) || (log.status === 'COMPLETE');
+                    const isActive = !isCompleted && auditText.toLocaleLowerCase().includes(stage.toLocaleLowerCase()); // basic check
+                    const classes = `step ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`;
+                    return `
+                                <div class="${classes}">
+                                    <div class="step-dot"></div>
+                                    <span>${stage}</span>
+                                </div>
+                            `;
+                }).join('')}
+                    </div>
+                </div>
+            `}).join('');
+        }
+
+        async function submitDecision(checkpointId, decision) {
+            const response = await fetch('/human-review/decision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    checkpoint_id: checkpointId,
+                    decision: decision,
+                    notes: 'Approved via Langie UI',
+                    reviewer_id: 'SANTOSH_CTO'
+                })
+            });
+            if (response.ok) fetchData();
+        }
+
+        // Initial fetch and poll
+        fetchData();
+        setInterval(fetchData, 3000);
+    </script>
+</body>
+
+</html>
