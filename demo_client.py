@@ -10,6 +10,7 @@ def log_section(title):
     print("="*60 + "\n")
 
 def run_demo():
+    input(">>> Press ENTER to start Demo 1: Happy Path...")
     log_section("Demo 1: Happy Path (Auto Match & Completion)")
     print("Scenario: Invoice amount and PO match perfectly. No human intervention needed.")
     
@@ -40,8 +41,7 @@ def run_demo():
     
     print("\nProcessing complete. Check server logs for Bigtool/MCP details.")
     
-    time.sleep(1)
-    
+    input("\n>>> Press ENTER to start Demo 2: HITL Path...")
     log_section("Demo 2: HITL Path (Failed Match -> Human Decision)")
     print("Scenario: Match score is 0.75 (below 0.90 threshold). Workflow will pause.")
     
